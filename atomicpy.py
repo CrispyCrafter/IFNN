@@ -1,17 +1,14 @@
 import pandas as pd
 from bs4 import BeautifulSoup
 import requests
-import os
-import numpy as np
 import json as jsonconvert
 
-
-
+from scipy.spatial.distance import euclidean
 import numpy as np
-import re
 
+import os
+import re
 import random
-random.random()
 
 class AtomInfo(object):
     """Simple Class to retrieve atomic radii infromation from wikipedia """
@@ -23,9 +20,9 @@ class AtomInfo(object):
         self.outfile = os.path.join(VdW_PATH["path"],"element_radii.csv")
 
         self.frame = self.retrieve()
-        self.json = self.json()
+        self.json = self.genJson()
 
-    def json(self,query='van der Waals'):
+    def genJson(self,query='van der Waals'):
         elements = self.frame[['symbol',query]]
         elements = elements.dropna()
         columns = elements.T.iloc[0].values
@@ -65,10 +62,10 @@ class AtomInfo(object):
 
 
     def retrieve(self):
-        outfile = self.outfile
 
-        if os.path.isfile(outfile):
-            frame = pd.read_csv(outfile)
+        if os.path.isfile(self.outfile):
+            # print("{} exists, reading from local directory".format(os.path.basename(self.outfile)))
+            frame = pd.read_csv(self.outfile)
 
             clean_frame = self.CleanFrame(frame)
 
@@ -166,15 +163,23 @@ class Molecule(object):
                     newcoords[i][2])
                         )
 
-    def find_centroid(self):
-        self.centroid = []
-        for i,val in enumerate(self.coords):
-            if i == 0:
-                self.centroid = self.coords[0]/(i+1)
-            else:
-                self.centroid = (self.centroid + self.coords[i])/(i+1)
+    def centroid(self):
+        self.molcentroid = []
+        x = np.average([np.float64(atom[0]) for atom in self.coords])
+        y = np.average([np.float64(atom[1]) for atom in self.coords])
+        z = np.average([np.float64(atom[2]) for atom in self.coords])
 
-        return np.array(self.centroid)
+        self.molcentroid = np.array([x,y,z])
+        return self.molcentroid
+
+    def exclusion(self):
+        centroid = self.centroid()
+        VdW = AtomInfo().json
+        maxvec = [euclidean(centroid,atom) for atom in np.array(self.coords)]
+        furthest_atom = self.atoms[np.argmax(maxvec)]
+        self.exclsn_radius = VdW[furthest_atom] + np.max(maxvec)
+
+        return self.exclsn_radius
 
     def transf_centroid(self):
         self.centroid = self.find_centroid()
